@@ -70,11 +70,43 @@ export class MainScene extends Phaser.Scene {
     // Update player
     this.playerController.update(this.player, this.playerSprite, this.inputState)
 
+    // Get fresh game state from registry
+    this.gameState = this.registry.get('gameState')
+    
     // Update monsters
-    Object.values(this.gameState.monsters).forEach(monster => {
+    const monsters = Object.values(this.gameState.monsters)
+    
+    monsters.forEach(monster => {
       const sprite = this.monsterSprites.get(monster.id)
       if (sprite) {
+        // Update monster AI and physics
+        
+        // Store original position for comparison
+        const originalX = monster.x
+        const originalY = monster.y
+        const originalState = monster.state
+        
         this.monsterController.update(monster, sprite, this.player)
+        
+        // Check if monster state changed and update game state
+        if (monster.x !== originalX || monster.y !== originalY || monster.state !== originalState) {
+          this.dispatch({
+            type: 'UPDATE_MONSTER',
+            payload: {
+              monsterId: monster.id,
+              monster: {
+                x: monster.x,
+                y: monster.y,
+                state: monster.state
+              }
+            }
+          })
+        }
+        
+        // Update sprite position to match monster position
+        sprite.setPosition(monster.x, monster.y)
+      } else {
+        console.warn(`No sprite found for monster ${monster.id}`)
       }
     })
 
@@ -136,19 +168,17 @@ export class MainScene extends Phaser.Scene {
       this.platforms.add(platformSprite)
     })
 
-    // Create monsters
+    // Create monsters using MonsterController
     this.gameState.currentMap.monsters.forEach((monsterSpawn, index) => {
-      const monsterId = `monster_${index}`
-      const monster: Monster = {
-        id: monsterId,
-        type: monsterSpawn.monsterType,
-        level: monsterSpawn.level,
-        health: 100,
-        maxHealth: 100,
-        x: monsterSpawn.x,
-        y: monsterSpawn.y,
-        state: 'idle'
-      }
+      const monster = this.monsterController.spawnMonster(
+        monsterSpawn.monsterType,
+        monsterSpawn.level,
+        monsterSpawn.x,
+        monsterSpawn.y
+      )
+      
+      // Override ID to be consistent
+      monster.id = `monster_${index}`
 
       this.dispatch({ type: 'ADD_MONSTER', payload: monster })
       this.createMonsterSprite(monster)
@@ -323,15 +353,20 @@ export class MainScene extends Phaser.Scene {
     const body = sprite.body as Phaser.Physics.Arcade.Body
     body.setCollideWorldBounds(true)
     body.setSize(24, 32)
+    body.setBounce(0.2, 0) // Add some bounce for more realistic movement
+    body.setDragX(100) // Add drag to prevent sliding
 
     this.monsterSprites.set(monster.id, sprite)
+    
+    // Add physics collision with platforms immediately
+    this.physics.add.collider(sprite, this.platforms)
   }
 
   private setupPhysics() {
     // Player vs platforms
     this.physics.add.collider(this.playerSprite, this.platforms)
 
-    // Monsters vs platforms
+    // Monsters vs platforms - Set up colliders for all existing monsters
     this.monsterSprites.forEach(sprite => {
       this.physics.add.collider(sprite, this.platforms)
     })

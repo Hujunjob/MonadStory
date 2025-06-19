@@ -4,7 +4,7 @@ import { Monster, Player } from '../types/game'
 export class MonsterController {
   private scene: Phaser.Scene
   private aiUpdateInterval = 500 // Update AI every 500ms
-  private lastAiUpdate = 0
+  private lastAiUpdate: Map<string, number> = new Map()
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
@@ -13,10 +13,14 @@ export class MonsterController {
   update(monster: Monster, sprite: Phaser.GameObjects.Sprite, player: Player) {
     const now = Date.now()
     
+    // Update monster AI based on player position
+    const lastUpdate = this.lastAiUpdate.get(monster.id) || 0
+    
     // Only update AI at intervals to improve performance
-    if (now - this.lastAiUpdate > this.aiUpdateInterval) {
+    if (now - lastUpdate > this.aiUpdateInterval) {
+      // Update AI logic
       this.updateAI(monster, sprite, player)
-      this.lastAiUpdate = now
+      this.lastAiUpdate.set(monster.id, now)
     }
 
     // Always update movement and animation
@@ -149,14 +153,20 @@ export class MonsterController {
 
   private moveTowards(monster: Monster, sprite: Phaser.GameObjects.Sprite, targetX: number, targetY: number, speed: number) {
     const body = sprite.body as Phaser.Physics.Arcade.Body
-    if (!body) return
+    if (!body) {
+      console.warn(`No physics body for monster ${monster.id}`)
+      return
+    }
 
     const dx = targetX - monster.x
     const dy = targetY - monster.y
     const distance = Math.sqrt(dx * dx + dy * dy)
 
+    // Moving monster towards target
+
     if (distance > 5) {
       const velocityX = (dx / distance) * speed
+      // Set movement velocity
       body.setVelocityX(velocityX)
       
       // Update monster position
@@ -214,28 +224,59 @@ export class MonsterController {
 
   private updateMovement(monster: Monster, sprite: Phaser.GameObjects.Sprite) {
     // Update monster position from sprite
+    const oldX = monster.x
+    const oldY = monster.y
+    
     monster.x = sprite.x
     monster.y = sprite.y
+    
+    // Track position changes for state updates
   }
 
   private updateAnimation(monster: Monster, sprite: Phaser.GameObjects.Sprite) {
     // Update sprite based on monster state
     // In a real implementation, you would change animations here
     
-    switch (monster.state) {
-      case 'idle':
-        sprite.setTint(0xffffff) // Normal color
-        break
-      case 'chasing':
-        sprite.setTint(0xffaaaa) // Slightly red tint
-        break
-      case 'attacking':
-        sprite.setTint(0xff0000) // Red tint
-        break
-      case 'dead':
-        sprite.setTint(0x555555) // Gray tint
-        sprite.setAlpha(0.5)
-        break
+    // Check if sprite has setTint method (Rectangle objects don't have it)
+    if (typeof (sprite as any).setTint === 'function') {
+      switch (monster.state) {
+        case 'idle':
+          (sprite as any).setTint(0xffffff) // Normal color
+          break
+        case 'chasing':
+          (sprite as any).setTint(0xffaaaa) // Slightly red tint
+          break
+        case 'attacking':
+          (sprite as any).setTint(0xff0000) // Red tint
+          break
+        case 'dead':
+          (sprite as any).setTint(0x555555) // Gray tint
+          if (typeof (sprite as any).setAlpha === 'function') {
+            (sprite as any).setAlpha(0.5)
+          }
+          break
+      }
+    } else {
+      // For Rectangle objects, use fillColor instead
+      const rect = sprite as Phaser.GameObjects.Rectangle
+      switch (monster.state) {
+        case 'idle':
+          rect.setFillStyle(0xFF4444) // Normal red
+          rect.setAlpha(1)
+          break
+        case 'chasing':
+          rect.setFillStyle(0xFF6666) // Lighter red when chasing
+          rect.setAlpha(1)
+          break
+        case 'attacking':
+          rect.setFillStyle(0xFF0000) // Bright red when attacking
+          rect.setAlpha(1)
+          break
+        case 'dead':
+          rect.setFillStyle(0x555555) // Gray when dead
+          rect.setAlpha(0.5)
+          break
+      }
     }
   }
 
