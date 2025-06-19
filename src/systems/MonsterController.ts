@@ -5,6 +5,9 @@ export class MonsterController {
   private scene: Phaser.Scene
   private aiUpdateInterval = 500 // Update AI every 500ms
   private lastAiUpdate: Map<string, number> = new Map()
+  private monsterSpawnPoints: Map<string, { x: number, y: number }> = new Map()
+  private patrolDirections: Map<string, number> = new Map() // 1 for right, -1 for left
+  private patrolDistances: Map<string, number> = new Map()
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
@@ -60,7 +63,7 @@ export class MonsterController {
   }
 
   private updateSlimeAI(monster: Monster, sprite: Phaser.GameObjects.Sprite, player: Player, distance: number) {
-    const aggroRange = 100
+    const aggroRange = 150
     const attackRange = 40
 
     if (distance <= attackRange) {
@@ -72,13 +75,14 @@ export class MonsterController {
       monster.targetPlayerId = player.id
       this.moveTowards(monster, sprite, player.x, player.y, 80)
     } else {
-      monster.state = 'idle'
+      monster.state = 'patrolling'
       monster.targetPlayerId = undefined
+      this.patrol(monster, sprite)
     }
   }
 
   private updateGoblinAI(monster: Monster, sprite: Phaser.GameObjects.Sprite, player: Player, distance: number) {
-    const aggroRange = 150
+    const aggroRange = 200
     const attackRange = 50
 
     if (distance <= attackRange) {
@@ -97,7 +101,7 @@ export class MonsterController {
   }
 
   private updateSkeletonAI(monster: Monster, sprite: Phaser.GameObjects.Sprite, player: Player, distance: number) {
-    const aggroRange = 200
+    const aggroRange = 250
     const attackRange = 60
 
     if (distance <= attackRange) {
@@ -109,8 +113,9 @@ export class MonsterController {
       monster.targetPlayerId = player.id
       this.moveTowards(monster, sprite, player.x, player.y, 100)
     } else {
-      monster.state = 'idle'
+      monster.state = 'patrolling'
       monster.targetPlayerId = undefined
+      this.patrol(monster, sprite)
     }
   }
 
@@ -181,11 +186,34 @@ export class MonsterController {
     const body = sprite.body as Phaser.Physics.Arcade.Body
     if (!body) return
 
-    // Simple patrol: move left and right randomly
-    const patrolSpeed = 30
-    const randomDirection = Math.random() > 0.5 ? 1 : -1
+    // Get or set spawn point for this monster
+    if (!this.monsterSpawnPoints.has(monster.id)) {
+      this.monsterSpawnPoints.set(monster.id, { x: monster.x, y: monster.y })
+      this.patrolDirections.set(monster.id, Math.random() > 0.5 ? 1 : -1)
+      this.patrolDistances.set(monster.id, 0)
+    }
+
+    const spawnPoint = this.monsterSpawnPoints.get(monster.id)!
+    const currentDirection = this.patrolDirections.get(monster.id)!
+    const currentDistance = this.patrolDistances.get(monster.id)!
     
-    body.setVelocityX(patrolSpeed * randomDirection)
+    const patrolSpeed = 50
+    const maxPatrolRange = 120 // Increased patrol range
+    
+    // Check if we've reached the patrol limit
+    const distanceFromSpawn = Math.abs(monster.x - spawnPoint.x)
+    
+    if (distanceFromSpawn >= maxPatrolRange || currentDistance >= maxPatrolRange) {
+      // Change direction
+      const newDirection = -currentDirection
+      this.patrolDirections.set(monster.id, newDirection)
+      this.patrolDistances.set(monster.id, 0)
+      body.setVelocityX(patrolSpeed * newDirection)
+    } else {
+      // Continue in current direction
+      body.setVelocityX(patrolSpeed * currentDirection)
+      this.patrolDistances.set(monster.id, currentDistance + Math.abs(body.velocity.x) * (1/60))
+    }
     
     monster.x = sprite.x
     monster.y = sprite.y
@@ -319,8 +347,13 @@ export class MonsterController {
       maxHealth: this.getMonsterMaxHealth(type, level),
       x,
       y,
-      state: 'idle'
+      state: 'patrolling' // Start with patrolling instead of idle
     }
+
+    // Initialize spawn point for this monster
+    this.monsterSpawnPoints.set(monster.id, { x, y })
+    this.patrolDirections.set(monster.id, Math.random() > 0.5 ? 1 : -1)
+    this.patrolDistances.set(monster.id, 0)
 
     return monster
   }

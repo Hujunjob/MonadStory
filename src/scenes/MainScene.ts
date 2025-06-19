@@ -41,6 +41,9 @@ export class MainScene extends Phaser.Scene {
     this.gameState = this.registry.get('gameState')
     this.dispatch = this.registry.get('dispatch')
 
+    // Set physics world bounds to match map size
+    this.physics.world.setBounds(0, 0, this.gameState.currentMap.width, this.gameState.currentMap.height)
+
     // Initialize systems
     this.playerController = new PlayerController(this)
     this.monsterController = new MonsterController(this)
