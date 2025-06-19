@@ -1,5 +1,5 @@
 {
-  "name": "moncraft-maplestory",
+  "name": "maplestory",
   "version": "1.0.0",
   "description": "MapleStory-style single-player platformer game",
   "type": "module",

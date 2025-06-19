@@ -10,11 +10,11 @@ export class MainScene extends Phaser.Scene {
   private playerController!: PlayerController
   private monsterController!: MonsterController
   private combatSystem!: CombatSystem
-  
+
   private player!: Player
   private playerSprite!: Phaser.GameObjects.Sprite
   private monsterSprites: Map<string, Phaser.GameObjects.Sprite> = new Map()
-  
+
   private platforms!: Phaser.Physics.Arcade.StaticGroup
   private inputState: InputState = {
     left: false,
@@ -50,15 +50,64 @@ export class MainScene extends Phaser.Scene {
     this.setupWorld()
     this.setupInput()
     this.setupCamera()
-    
+
     // Create player
     this.createPlayer()
-    
+
     // Set up physics
     this.setupPhysics()
 
     // Start game loop
-    this.events.on('update', this.gameUpdate, this)
+    // this.events.on('update', this.gameUpdate, this)
+  }
+
+  update(time: number, delta: number): void {
+    // Only update if player exists
+    if (!this.player || !this.playerSprite) {
+      return
+    }
+
+    // Update player
+    this.playerController.update(this.player, this.playerSprite, this.inputState)
+
+    // Update monsters
+    Object.values(this.gameState.monsters).forEach(monster => {
+      const sprite = this.monsterSprites.get(monster.id)
+      if (sprite) {
+        this.monsterController.update(monster, sprite, this.player)
+      }
+    })
+
+    // Update combat
+    this.combatSystem.update()
+
+    // Update player name label position
+    if ((this.playerSprite as any).nameLabel) {
+      ; (this.playerSprite as any).nameLabel.setPosition(
+        this.playerSprite.x,
+        this.playerSprite.y - 30
+      )
+    }
+
+    // Update local game state
+    if (this.playerSprite.body) {
+      const body = this.playerSprite.body as Phaser.Physics.Arcade.Body
+
+      this.dispatch({
+        type: 'UPDATE_PLAYER',
+        payload: {
+          playerId: this.player.id,
+          player: {
+            x: this.playerSprite.x,
+            y: this.playerSprite.y,
+            velocityX: body.velocity.x,
+            velocityY: body.velocity.y,
+            direction: this.player.direction,
+            state: this.player.state
+          }
+        }
+      })
+    }
   }
 
   private setupWorld() {
@@ -73,7 +122,7 @@ export class MainScene extends Phaser.Scene {
 
     // Create platforms
     this.platforms = this.physics.add.staticGroup()
-    
+
     this.gameState.currentMap.platforms.forEach(platform => {
       const platformSprite = this.add.rectangle(
         platform.x + platform.width / 2,
@@ -82,7 +131,7 @@ export class MainScene extends Phaser.Scene {
         platform.height,
         platform.type === 'solid' ? 0x8B4513 : 0x654321 // Brown colors
       )
-      
+
       this.physics.add.existing(platformSprite, true)
       this.platforms.add(platformSprite)
     })
@@ -100,7 +149,7 @@ export class MainScene extends Phaser.Scene {
         y: monsterSpawn.y,
         state: 'idle'
       }
-      
+
       this.dispatch({ type: 'ADD_MONSTER', payload: monster })
       this.createMonsterSprite(monster)
     })
@@ -115,7 +164,7 @@ export class MainScene extends Phaser.Scene {
   private handleKeyDown(event: KeyboardEvent) {
     const now = this.time.now
     if (now - this.lastInputTime < this.inputBuffer) return
-    
+
     switch (event.key.toLowerCase()) {
       case 'a':
       case 'arrowleft':
@@ -147,7 +196,7 @@ export class MainScene extends Phaser.Scene {
         this.inputState.inventory = true
         break
     }
-    
+
     this.lastInputTime = now
   }
 
@@ -194,14 +243,14 @@ export class MainScene extends Phaser.Scene {
   private createPlayer() {
     // Create a default player
     const spawnPoint = this.gameState.currentMap.spawnPoints[0]
-    
+
     // Get URL parameters for customization
     const urlParams = new URLSearchParams(window.location.search)
     const username = urlParams.get('username') || 'Player'
     const characterClass = urlParams.get('class') || 'warrior'
-    
+
     console.log('Creating player:', { username, characterClass })
-    
+
     this.player = {
       id: 'player_1',
       username: username,
@@ -246,7 +295,7 @@ export class MainScene extends Phaser.Scene {
 
     // Make camera follow player
     this.cameras.main.startFollow(this.playerSprite)
-    
+
     // Add player name label
     const playerLabel = this.add.text(this.player.x, this.player.y - 30, this.player.username, {
       fontSize: '12px',
@@ -254,10 +303,10 @@ export class MainScene extends Phaser.Scene {
       backgroundColor: '#006600',
       padding: { x: 4, y: 2 }
     }).setOrigin(0.5)
-    
-    // Store label reference
-    ;(this.playerSprite as any).nameLabel = playerLabel
-    
+
+      // Store label reference
+      ; (this.playerSprite as any).nameLabel = playerLabel
+
     console.log('Created player sprite for:', this.player.username)
   }
 
@@ -281,62 +330,11 @@ export class MainScene extends Phaser.Scene {
   private setupPhysics() {
     // Player vs platforms
     this.physics.add.collider(this.playerSprite, this.platforms)
-    
+
     // Monsters vs platforms
     this.monsterSprites.forEach(sprite => {
       this.physics.add.collider(sprite, this.platforms)
     })
-  }
-
-  // Remove multiplayer methods - no longer needed for single player
-
-  private gameUpdate() {
-    // Only update if player exists
-    if (!this.player || !this.playerSprite) {
-      return
-    }
-
-    // Update player
-    this.playerController.update(this.player, this.playerSprite, this.inputState)
-    
-    // Update monsters
-    Object.values(this.gameState.monsters).forEach(monster => {
-      const sprite = this.monsterSprites.get(monster.id)
-      if (sprite) {
-        this.monsterController.update(monster, sprite, this.player)
-      }
-    })
-
-    // Update combat
-    this.combatSystem.update()
-
-    // Update player name label position
-    if ((this.playerSprite as any).nameLabel) {
-      ;(this.playerSprite as any).nameLabel.setPosition(
-        this.playerSprite.x, 
-        this.playerSprite.y - 30
-      )
-    }
-
-    // Update local game state
-    if (this.playerSprite.body) {
-      const body = this.playerSprite.body as Phaser.Physics.Arcade.Body
-      
-      this.dispatch({
-        type: 'UPDATE_PLAYER',
-        payload: {
-          playerId: this.player.id,
-          player: {
-            x: this.playerSprite.x,
-            y: this.playerSprite.y,
-            velocityX: body.velocity.x,
-            velocityY: body.velocity.y,
-            direction: this.player.direction,
-            state: this.player.state
-          }
-        }
-      })
-    }
   }
 
   // Public getters for systems

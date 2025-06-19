@@ -1,4 +1,4 @@
-# MonCraft - MapleStory Style Multiplayer Game
+# MapleStory Style Multiplayer Game
 
 A multiplayer side-scrolling platformer game inspired by MapleStory, built with Phaser 3, React, TypeScript, Vite, and Croquet for real-time multiplayer functionality.
 
@@ -27,7 +27,6 @@ A multiplayer side-scrolling platformer game inspired by MapleStory, built with 
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd moncraft
 ```
 
 2. Install dependencies:
