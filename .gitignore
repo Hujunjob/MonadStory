@@ -1,0 +1,8 @@
+.env
+node_modules
+
+
+MULTIPLAYER_TEST.md
+TESTING_GUIDE.md
+package-lock.json
+GAME_SETUP.md
